@@ -7,10 +7,8 @@ import (
 	"net"
 )
 
-// const target = ":5050"
-
 func main() {
-	targetPtr := flag.String("target", ":5050", "Which port to listen on")
+	targetPtr := flag.String("target", ":5050", "The port to listen to")
 
 	flag.Parse()
 
@@ -38,9 +36,4 @@ func main() {
 		msg := p[:nn]
 		fmt.Printf("Received %v %s\n", raddr, msg)
 	}
-}
-
-func handleMessage(connection net.Conn) {
-	io.Copy(connection, connection)
-	connection.Close()
 }

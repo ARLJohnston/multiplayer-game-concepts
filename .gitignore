@@ -1,0 +1,10 @@
+# Ignore everything
+*
+
+# Add back what we want
+!.gitignore
+!LICENSE
+
+!client/
+!logging/
+!server/
