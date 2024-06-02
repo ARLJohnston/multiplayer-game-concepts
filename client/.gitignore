@@ -3,5 +3,10 @@
 !.gitignore
 !Cargo.toml
 !Cargo.lock
+!flake.nix
+!flake.lock
+
 !src/
 !src/*.rs
+
+!assets/
