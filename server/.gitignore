@@ -1,0 +1,8 @@
+*
+
+!.gitignore
+!gleam.toml
+!src/
+!src/*.gleam
+!test/
+!test/*.gleam
