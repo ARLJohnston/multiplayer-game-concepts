@@ -4,5 +4,6 @@
 !gleam.toml
 !src/
 !src/*.gleam
+!src/*.erl
 !test/
 !test/*.gleam
