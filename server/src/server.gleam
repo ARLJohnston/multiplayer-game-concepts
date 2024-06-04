@@ -39,40 +39,34 @@ fn ip_address(value: Dynamic) -> Result(IPAddress, List(DecodeError)) {
   |> dynamic.tuple4(dynamic.int, dynamic.int, dynamic.int, dynamic.int)
 }
 
+fn udp_packet(
+  value: Dynamic,
+) -> Result(#(Dynamic, Dynamic, IPAddress, Port, BitArray), List(DecodeError)) {
+  value
+  |> dynamic.tuple5(
+    //UDP tag
+    dynamic.dynamic,
+    //Socket, we only open one socket
+    dynamic.dynamic,
+    ip_address,
+    dynamic.int,
+    dynamic.bit_array,
+  )
+}
+
 pub fn main() {
   let assert Ok(socket) = udp_open(5050)
 
   let selector =
     process.new_selector()
-    |> process.selecting_anything(fn(anything) {
-      io.debug(anything)
-      io.debug("Decode:")
-      anything
-      |> dynamic.tuple5(
-        dynamic.dynamic,
-        //UDP
-        dynamic.dynamic,
-        //Socket
-        ip_address,
-        dynamic.int,
-        dynamic.list(dynamic.int),
-      )
-      |> io.debug
+    |> process.selecting_anything(fn(packet) {
+      let assert Ok(#(_, _, ip, port, payload)) =
+        packet
+        |> udp_packet
+
+      io.debug(payload)
     })
 
-  // Packet looks like:
-  // Udp(//erl(#Port<0.4>), #(127, 0, 0, 1), 6969, [72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100])
-  // Udp(socket, from_ip, from_port, data)
-
-  // let address: IPAddress = #(127, 0, 0, 1)
-
-  // let assert Ok(sender) = udp_open(5051)
-  // let _ =
-  //   udp_send(sender, address, 5050, bytes_builder.from_string("Hello, World"))
-  // let data = udp_recv(socket, 1024)
-  // io.debug("Recvd:")
-  // io.debug(data)
-  // io.debug("end recvd")
   process.select_forever(selector)
   |> io.debug
 
