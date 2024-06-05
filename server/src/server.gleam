@@ -1,8 +1,10 @@
 import gleam/bit_array
-import gleam/bytes_builder.{type BytesBuilder}
 import gleam/dynamic.{type DecodeError, type Dynamic}
 import gleam/erlang/process.{type Subject}
 import gleam/io
+import gleam/json.{float, object, string}
+
+// import juno.{type Value}
 
 //Phantom types!
 pub type Socket
@@ -25,7 +27,7 @@ pub fn udp_send(
   socket: Socket,
   target_ip: IPAddress,
   target_port: Port,
-  data: BytesBuilder,
+  data: BitArray,
 ) -> Result(Nil, Error)
 
 @external(erlang, "udp_ffi", "udp_recv")
@@ -54,6 +56,14 @@ fn udp_packet(
   )
 }
 
+type Entity {
+  Entity(guid: String, pos: Coords)
+}
+
+type Coords {
+  Coords(x: Float, y: Float)
+}
+
 pub fn main() {
   let assert Ok(socket) = udp_open(5050)
 
@@ -64,12 +74,45 @@ pub fn main() {
         packet
         |> udp_packet
 
-      io.debug(payload)
+      let position_decoder =
+        dynamic.decode2(
+          Coords,
+          dynamic.field("x", of: dynamic.float),
+          dynamic.field("y", of: dynamic.float),
+        )
+
+      let decoder =
+        dynamic.decode2(
+          Entity,
+          dynamic.field("guid", of: dynamic.string),
+          dynamic.field("position", of: position_decoder),
+        )
+
+      let assert Ok(payload) = bit_array.to_string(payload)
+
+      // let assert Ok(payload) =
+      //   payload
+      //   |> json.decode(using:decoder)
+
+      let assert Ok(Entity(guid, position)) =
+        json.decode(from: payload, using: decoder)
+
+      let reply =
+        object([
+          #("guid", string(guid)),
+          #(
+            "position",
+            object([
+              #("x", float(position.x +. 10.0)),
+              #("y", float(position.y +. 10.0)),
+            ]),
+          ),
+        ])
+
+      udp_send(socket, ip, port, bit_array.from_string(json.to_string(reply)))
     })
 
   process.select_forever(selector)
-  |> io.debug
 
   let _ = udp_close(socket)
-  io.debug(socket)
 }
