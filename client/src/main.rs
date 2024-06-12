@@ -3,27 +3,42 @@ use serde_json::Value;
 use std::net::UdpSocket;
 
 use bevy::prelude::*;
-use tokio;
-use tokio::runtime::Runtime;
-use tokio::sync::mpsc;
+
+#[derive(Resource)]
+pub struct GameState {
+    socket: UdpSocket,
+    x: f32,
+    y: f32,
+}
+
+impl Default for GameState {
+    fn default() -> Self {
+        let socket = UdpSocket::bind("127.0.0.1:6969").expect("Couldn't connect to {target}");
+        socket.set_nonblocking(true).unwrap();
+        GameState {
+            socket,
+            x: 0.,
+            y: 0.,
+        }
+    }
+}
 
 fn character_movement(
     mut characters: Query<(&mut Transform, &Sprite)>,
+    mut gameState: Res<GameState>,
     input: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
 ) {
     for (mut transform, _) in &mut characters {
-        let target = "127.0.0.1:5050";
-        let socket = UdpSocket::bind("127.0.0.1:6969").expect("Couldn't connect to {target}");
-        socket.set_nonblocking(true).unwrap();
-
         let json = json!({
                     "guid" : "15234y",
                     "position" : {
-              "x": transform.translation.x,
+              "x": transform.translation.x, //Start with this as we only want to update from server when we get it
               "y": transform.translation.y
             },
         });
+        let socket = &gameState.socket;
+        let target = "127.0.0.1:5050";
 
         socket
             .send_to(json.to_string().as_bytes(), target)
@@ -85,26 +100,13 @@ fn setup_framelimit(mut settings: ResMut<bevy_framepace::FramepaceSettings>) {
     settings.limiter = Limiter::from_framerate(30.0)
 }
 
-async fn async_bit() {
-    println!("Hello, world!");
-}
-
-#[tokio::main]
-async fn main() {
-    let _ = async_bit().await;
-
+fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()).build())
         .add_plugins(bevy_framepace::FramepacePlugin)
-        // .insert_resource(
-        //     tokio::runtime::Builder::new_multi_thread()
-        //         .enable_all()
-        //         .build()
-        //         .unwrap(),
-        // )
+        .init_resource::<GameState>()
         .add_systems(Startup, setup_camera)
         .add_systems(Startup, setup_framelimit)
         .add_systems(Update, character_movement)
         .run();
-    // https://github.com/theon/bevy_tokio_example/blob/29d68baf414afb952bf4e3d1260ed7bb6e0d3bfd/bevy_tokio_example_client/src/main.rs
 }
