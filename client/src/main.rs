@@ -3,6 +3,9 @@ use serde_json::Value;
 use std::net::UdpSocket;
 
 use bevy::prelude::*;
+use tokio;
+use tokio::runtime::Runtime;
+use tokio::sync::mpsc;
 
 fn character_movement(
     mut characters: Query<(&mut Transform, &Sprite)>,
@@ -12,6 +15,7 @@ fn character_movement(
     for (mut transform, _) in &mut characters {
         let target = "127.0.0.1:5050";
         let socket = UdpSocket::bind("127.0.0.1:6969").expect("Couldn't connect to {target}");
+        socket.set_nonblocking(true).unwrap();
 
         let json = json!({
                     "guid" : "15234y",
@@ -38,7 +42,6 @@ fn character_movement(
             transform.translation.x += 100.0 * time.delta_seconds()
         }
 
-        println!("Way Before transform: {}", transform.translation.y);
         let mut buf = vec![0; 1024];
 
         match socket.recv_from(&mut buf) {
@@ -82,12 +85,26 @@ fn setup_framelimit(mut settings: ResMut<bevy_framepace::FramepaceSettings>) {
     settings.limiter = Limiter::from_framerate(30.0)
 }
 
-fn main() {
+async fn async_bit() {
+    println!("Hello, world!");
+}
+
+#[tokio::main]
+async fn main() {
+    let _ = async_bit().await;
+
     App::new()
         .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()).build())
         .add_plugins(bevy_framepace::FramepacePlugin)
+        // .insert_resource(
+        //     tokio::runtime::Builder::new_multi_thread()
+        //         .enable_all()
+        //         .build()
+        //         .unwrap(),
+        // )
         .add_systems(Startup, setup_camera)
         .add_systems(Startup, setup_framelimit)
         .add_systems(Update, character_movement)
         .run();
+    // https://github.com/theon/bevy_tokio_example/blob/29d68baf414afb952bf4e3d1260ed7bb6e0d3bfd/bevy_tokio_example_client/src/main.rs
 }
