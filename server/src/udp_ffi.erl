@@ -1,6 +1,9 @@
 -module(udp_ffi).
 
--export([udp_open/1, udp_send/4, udp_close/1, udp_recv/2]).
+-export([udp_open/1, udp_send/4, udp_close/1, udp_recv/2, test/1]).
+
+test(Pid) ->
+    Pid!{self(), "Hello, World!"}.
 
 %% Open in binary to allow decoding to a BitArray
 udp_open(Port) ->
@@ -14,6 +17,7 @@ udp_recv(Socket, Length) ->
 
 udp_close(Socket) ->
     normalise(gen_udp:close(Socket)).
+
 
 %% Transforms {ok||err, obj} to a Gleam Result
 normalise(ok) ->

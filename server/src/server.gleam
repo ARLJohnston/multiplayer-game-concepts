@@ -1,59 +1,57 @@
 import gleam/bit_array
 import gleam/dynamic.{type DecodeError, type Dynamic}
-import gleam/erlang/process.{type Subject}
+import gleam/erlang/atom
+import gleam/erlang/process.{type Selector, type Subject}
 import gleam/io
 import gleam/json.{float, object, string}
-
-// import juno.{type Value}
-
-//Phantom types!
-pub type Socket
-
-pub type Port =
-  Int
-
-pub type Error
-
-pub type RecvData
-
-pub type IPAddress =
-  #(Int, Int, Int, Int)
-
-@external(erlang, "udp_ffi", "udp_open")
-pub fn udp_open(port: Port) -> Result(Socket, Error)
-
-@external(erlang, "udp_ffi", "udp_send")
-pub fn udp_send(
-  socket: Socket,
-  target_ip: IPAddress,
-  target_port: Port,
-  data: BitArray,
-) -> Result(Nil, Error)
-
-@external(erlang, "udp_ffi", "udp_recv")
-pub fn udp_recv(socket: Socket, max_packet_size: Int) -> Result(RecvData, Error)
-
-@external(erlang, "udp_ffi", "udp_close")
-pub fn udp_close(socket: Socket) -> Result(Nil, Error)
+import gleam/otp/actor
+import udp.{
+  type IPAddress, type Port, type RecvData, type Socket, udp_close, udp_open,
+  udp_send, udp_test,
+}
 
 fn ip_address(value: Dynamic) -> Result(IPAddress, List(DecodeError)) {
   value
   |> dynamic.tuple4(dynamic.int, dynamic.int, dynamic.int, dynamic.int)
 }
 
-fn udp_packet(
-  value: Dynamic,
-) -> Result(#(Dynamic, Dynamic, IPAddress, Port, BitArray), List(DecodeError)) {
-  value
-  |> dynamic.tuple5(
-    //UDP tag
-    dynamic.dynamic,
-    //Socket, we only open one socket
-    dynamic.dynamic,
-    ip_address,
-    dynamic.int,
-    dynamic.bit_array,
+fn udp_selector() -> Selector(Message) {
+  process.new_selector()
+  |> process.selecting_record5(
+    atom.create_from_string("udp"),
+    fn(_, ip, port, payload) {
+      let ip = ip_address(ip)
+      let port = dynamic.int(port)
+      let payload = dynamic.bit_array(payload)
+
+      case ip, port, payload {
+        Ok(ip), Ok(port), Ok(payload) -> {
+          Udp(ip, port, payload)
+        }
+        _, _, _ -> Unhandled
+      }
+    },
   )
+}
+
+fn json_decoder(payload: BitArray) -> Result(Entity, json.DecodeError) {
+  let position_decoder =
+    dynamic.decode2(
+      Coords,
+      dynamic.field("x", of: dynamic.float),
+      dynamic.field("y", of: dynamic.float),
+    )
+
+  let decoder =
+    dynamic.decode2(
+      Entity,
+      dynamic.field("guid", of: dynamic.string),
+      dynamic.field("position", of: position_decoder),
+    )
+
+  let assert Ok(payload) = bit_array.to_string(payload)
+
+  json.decode(from: payload, using: decoder)
 }
 
 type Entity {
@@ -67,52 +65,71 @@ type Coords {
 pub fn main() {
   let assert Ok(socket) = udp_open(5050)
 
-  let selector =
-    process.new_selector()
-    |> process.selecting_anything(fn(packet) {
-      let assert Ok(#(_, _, ip, port, payload)) =
-        packet
-        |> udp_packet
+  let sub = process.new_subject()
 
-      let position_decoder =
-        dynamic.decode2(
-          Coords,
-          dynamic.field("x", of: dynamic.float),
-          dynamic.field("y", of: dynamic.float),
-        )
+  //Erlang messages are recvd as untyped tuples
 
-      let decoder =
-        dynamic.decode2(
-          Entity,
-          dynamic.field("guid", of: dynamic.string),
-          dynamic.field("position", of: position_decoder),
-        )
+  let selector = udp_selector()
 
-      let assert Ok(payload) = bit_array.to_string(payload)
+  let _ = udp_test(process.self())
 
-      // let assert Ok(payload) =
-      //   payload
-      //   |> json.decode(using:decoder)
+  let assert Ok(act) = new(socket)
 
-      let assert Ok(Entity(guid, position)) =
-        json.decode(from: payload, using: decoder)
+  let packet =
+    process.select_forever(selector)
+    |> io.debug
+
+  case packet {
+    Udp(_, _, _) -> {
+      actor.send(act, packet)
+    }
+    _ -> {
+      Nil
+    }
+  }
+
+  process.sleep_forever()
+  actor.send(act, Shutdown)
+  let _ = udp_close(socket)
+}
+
+type Message {
+  Udp(address: IPAddress, port: Port, data: BitArray)
+  Unhandled
+  Shutdown
+}
+
+fn new(socket: Socket) -> Result(Subject(Message), actor.StartError) {
+  actor.start(socket, handle_message)
+}
+
+fn handle_message(
+  message: Message,
+  socket: Socket,
+) -> actor.Next(Message, Socket) {
+  case message {
+    Udp(ip, port, payload) -> {
+      io.debug(message)
+      let assert Ok(Entity(guid, Coords(x, y))) = json_decoder(payload)
 
       let reply =
         object([
           #("guid", string(guid)),
           #(
             "position",
-            object([
-              #("x", float(position.x +. 10.0)),
-              #("y", float(position.y +. 10.0)),
-            ]),
+            object([#("x", float(x +. 100.0)), #("y", float(y +. 100.0))]),
           ),
         ])
 
-      udp_send(socket, ip, port, bit_array.from_string(json.to_string(reply)))
-    })
+      let _ =
+        udp_send(socket, ip, port, bit_array.from_string(json.to_string(reply)))
 
-  process.select_forever(selector)
-
-  let _ = udp_close(socket)
+      actor.continue(socket)
+    }
+    Unhandled -> {
+      io.debug("Unhandled Message Received")
+      actor.continue(socket)
+    }
+    Shutdown -> actor.Stop(process.Normal)
+  }
 }
