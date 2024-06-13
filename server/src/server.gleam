@@ -6,8 +6,8 @@ import gleam/io
 import gleam/json.{float, object, string}
 import gleam/otp/actor
 import udp.{
-  type IPAddress, type Port, type RecvData, type Socket, udp_close, udp_open,
-  udp_send, udp_test,
+  type IPAddress, type Port, type Socket, udp_close, udp_open, udp_send,
+  udp_test,
 }
 
 fn ip_address(value: Dynamic) -> Result(IPAddress, List(DecodeError)) {
@@ -63,8 +63,6 @@ type Coords {
 }
 
 pub fn main() {
-  let assert Ok(socket) = udp_open(5050)
-
   let sub = process.new_subject()
 
   //Erlang messages are recvd as untyped tuples
@@ -73,7 +71,7 @@ pub fn main() {
 
   let _ = udp_test(process.self())
 
-  let assert Ok(act) = new(socket)
+  let assert Ok(act) = new(5050)
 
   let packet =
     process.select_forever(selector)
@@ -90,7 +88,6 @@ pub fn main() {
 
   process.sleep_forever()
   actor.send(act, Shutdown)
-  let _ = udp_close(socket)
 }
 
 type Message {
@@ -99,8 +96,15 @@ type Message {
   Shutdown
 }
 
-fn new(socket: Socket) -> Result(Subject(Message), actor.StartError) {
-  actor.start(socket, handle_message)
+fn new(port: Port) -> Result(Subject(Message), actor.StartError) {
+  actor.start_spec(actor.Spec(
+    init: fn() {
+      let assert Ok(socket) = udp_open(port)
+      actor.Ready(socket, udp_selector())
+    },
+    init_timeout: 1000,
+    loop: handle_message,
+  ))
 }
 
 fn handle_message(
@@ -110,26 +114,37 @@ fn handle_message(
   case message {
     Udp(ip, port, payload) -> {
       io.debug(message)
-      let assert Ok(Entity(guid, Coords(x, y))) = json_decoder(payload)
 
-      let reply =
-        object([
-          #("guid", string(guid)),
-          #(
-            "position",
-            object([#("x", float(x +. 100.0)), #("y", float(y +. 100.0))]),
-          ),
-        ])
+      case json_decoder(payload) {
+        Ok(Entity(guid, Coords(x, y))) -> {
+          let reply =
+            object([
+              #("guid", string(guid)),
+              #(
+                "position",
+                object([#("x", float(x +. 0.1)), #("y", float(y +. 0.1))]),
+              ),
+            ])
 
-      let _ =
-        udp_send(socket, ip, port, bit_array.from_string(json.to_string(reply)))
-
-      actor.continue(socket)
+          let _ =
+            udp_send(
+              socket,
+              ip,
+              port,
+              bit_array.from_string(json.to_string(reply)),
+            )
+          actor.continue(socket)
+        }
+        _ -> actor.continue(socket)
+      }
     }
     Unhandled -> {
       io.debug("Unhandled Message Received")
       actor.continue(socket)
     }
-    Shutdown -> actor.Stop(process.Normal)
+    Shutdown -> {
+      let _ = udp_close(socket)
+      actor.Stop(process.Normal)
+    }
   }
 }
