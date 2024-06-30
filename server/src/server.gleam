@@ -49,9 +49,7 @@ fn json_decoder(payload: BitArray) -> Result(Entity, json.DecodeError) {
       dynamic.field("position", of: position_decoder),
     )
 
-  let assert Ok(payload) = bit_array.to_string(payload)
-
-  json.decode(from: payload, using: decoder)
+  json.decode_bits(from: payload, using: decoder)
 }
 
 type Entity {
@@ -83,9 +81,9 @@ fn game_logic(entity: Entity) -> json.Json {
     False -> x
   }
 
-  let y = case float.absolute_value(x) >. 480.0 {
+  let y = case float.absolute_value(y) >. 480.0 {
     True -> 0.0
-    False -> x
+    False -> y
   }
   object([
     #("guid", string(guid)),
