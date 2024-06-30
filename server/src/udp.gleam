@@ -29,6 +29,3 @@ pub fn udp_recv(socket: Socket, max_packet_size: Int) -> Result(RecvData, Error)
 
 @external(erlang, "udp_ffi", "udp_close")
 pub fn udp_close(socket: Socket) -> Result(Nil, Error)
-
-@external(erlang, "udp_ffi", "test")
-pub fn udp_test(pid: Pid) -> Nil

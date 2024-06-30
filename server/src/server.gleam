@@ -8,7 +8,6 @@ import gleam/json.{float, object, string}
 import gleam/otp/actor
 import udp.{
   type IPAddress, type Port, type Socket, udp_close, udp_open, udp_send,
-  udp_test,
 }
 
 fn ip_address(value: Dynamic) -> Result(IPAddress, List(DecodeError)) {
@@ -66,11 +65,7 @@ type Coords {
 pub fn main() {
   let _sub = process.new_subject()
 
-  //Erlang messages are recvd as untyped tuples
-
   let selector = udp_selector()
-
-  let _ = udp_test(process.self())
 
   let assert Ok(act) = new(5050)
 

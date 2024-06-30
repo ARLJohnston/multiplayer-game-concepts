@@ -102,15 +102,17 @@ fn server_report(time: Res<Time>, mut game_state: ResMut<GameState>) {
         let target = "127.0.0.1:5050";
 
         let json = json!({
-                    "guid" : "15234y",
-                    "position" : {
-              "x": game_state.x,
-              "y":game_state.y,
-            },
+              "guid" : "15234y",
+              "position" : {
+                  "x": game_state.x,
+                  "y":game_state.y,
+              },
         });
 
+        let serialized_data = serde_json::to_vec(&json).expect("Failed to serialize JSON");
+
         socket
-            .send_to(json.to_string().as_bytes(), target)
+            .send_to(&serialized_data, target)
             .expect("Unable to send data to {target}");
     }
 }
