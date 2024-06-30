@@ -1,0 +1,9 @@
+Basic project to practice Gleam, Rust and Go
+
+A basic 'game server' is implemented in Gleam, a 'client' in Rust and utils for testing etc in Go
+
+* Concepts
+- Actors (Gleam)
+- OTP (Gleam)
+- Networking (Gleam, Rust, Go)
+- Json Marshalling (Gleam, Rust, Go)

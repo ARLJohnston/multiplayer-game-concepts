@@ -83,7 +83,7 @@ fn setup_camera(mut commands: Commands, asset_server: Res<AssetServer>) {
         ..default() //Fill remaining args with default values
     });
 
-    let texture = asset_server.load("lucy.png");
+    let texture = asset_server.load("character.png");
 
     commands.spawn(SpriteBundle {
         sprite: Sprite {
