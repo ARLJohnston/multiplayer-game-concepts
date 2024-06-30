@@ -1,6 +1,7 @@
 Basic project to practice Gleam, Rust and Go
 
-A basic 'game server' is implemented in Gleam, a 'client' in Rust and utils for testing etc in Go
+A basic 'game server' is implemented in Gleam, a 'client' in Rust and utils for testing etc in Go.
+This moves a sprite, but both the server and the client have a view of it and can apply logic.
 
 * Concepts
 - Actors (Gleam)
